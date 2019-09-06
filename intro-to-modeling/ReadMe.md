@@ -1,10 +1,10 @@
-﻿# 教程：Gen 中的建模简介
+﻿# 教程：使用 Gen 进行建模
 
 Gen 是概率建模和推理的多范式平台。Gen 支持多种建模和推理工作流程，包括：
 
 - 使用蒙特卡罗，变分，EM 和随机梯度技术在生成模型中进行无监督学习和后验推理。
 
-- 有条件推理模型的监督学习（例如监督分类和回归）。
+- 有条件推理模型的有监督学习（例如监督分类和回归）。
 
 - 混合方法，包括摊销推理/推理编译，变分自动编码器和半监督学习。
 
@@ -12,7 +12,7 @@ Gen 是概率建模和推理的多范式平台。Gen 支持多种建模和推理
 
 - 使用随机分支和函数抽象来表示多个模型时，哪个模型更适合的不确定性。
 
-- 用无限数量的参数表示模型（'贝叶斯非参数'模型）。
+- 用无数量限制的参数表示模型（'贝叶斯非参数'模型）。
 
 该 Notebook 使用简单的通用推理算法进行后验推理，并显示了一些应用于简单模型的推理示例。Notebook 还介绍了一种通过从推断参数预测新数据并将此数据与观察数据集进行比较来验证模型和推理算法的技术。
 
@@ -241,23 +241,23 @@ render_trace(trace);
 
 ![png](output_38_0.png)
 
-因为生成函数是随机的，我们需要可视化许多运行以了解其行为。下面的单元格呈现一个迹线网格。
+因为生成函数是随机的，我们需要进行多次可视化，以了解其行为。下面的单元格呈现一个 trace 网格。
 
 ```julia
-function grid（renderer :: Function，traces; ncols = 6，nrows = 3）
-图（figsize =（16,8））
-for（i，trace）in enumerate（traces）
-subplot（nrows，ncols，i）
-渲染器（trace）
-end
+function grid(renderer::Function, traces; ncols=6, nrows=3)
+    figure(figsize=(16, 8))
+    for (i, trace) in enumerate(traces)
+        subplot(nrows, ncols, i)
+        renderer(trace)
+    end
 end;
 ```
 
 现在，我们生成几条轨迹并在网格中渲染它们
 
 ```julia
-traces = [Gen.simulate（line_model，（xs，））for = = 1：12]
-grid（render_trace，traces）
+traces = [Gen.simulate(line_model, (xs,)) for _=1:12]
+grid(render_trace, traces)
 ```
 
 ![png](output_42_0.png)
@@ -266,51 +266,51 @@ grid（render_trace，traces）
 
 ### 练习
 
-编写两次使用相同地址的生成函数。运行它看看会发生什么。
+编写使用相同地址两次的生成函数。运行，看看会发生什么。
 
 ---
 
 ### 练习
 
-编写一个生成具有随机相位，周期和幅度的正弦波的模型，然后通过将噪声添加到每个 x 坐标处的波的值来从给定的 x 坐标向量生成 y 坐标。
-使用一段时间的'gamma（5,1）`先验分布，以及幅度上的'gamma（1,1）`先验分布（参见[`Gen.gamma`]（https://probcomp.github.io） /Gen/dev/ref/distributions/#Gen.gamma））。对该阶段使用均匀分布（参见[`Gen.uniform`]（https://probcomp.github.io/Gen/dev/ref/distributions/#Gen.uniform））。编写一个通过显示数据集和正弦波来渲染轨迹的函数。可视化trace网格并讨论分布。尝试调整每个先前分布的参数，并查看行为如何变化。
+编写一个生成具有随机相位、周期和幅度的正弦波的模型，然后生成给出的 x 坐标处的 y 坐标，并在每个 x 坐标的生成值处添加噪声。
+对该周期使用 `gamma(5, 1)` 先验分布, 并对幅度使用 `gamma(1, 1)` 先验分布 （参见 [`Gen.gamma`](https://probcomp.github.io/Gen/dev/ref/distributions/#Gen.gamma)）。对相位使用均匀分布 （参见 [`Gen.uniform`](https://probcomp.github.io/Gen/dev/ref/distributions/#Gen.uniform)）。编写一个通过显示数据集和正弦波来渲染轨迹的函数。可视化 trace 网格并讨论其分布。尝试调整每个先验分布的参数，并观察结果行为的变化。
 
-###答案
+### 答案
 
 ```julia
-@gen function sine_model（xs :: Vector {Float64}）
-n =长度（xs）
-phase = @trace（uniform（0,2 * pi），：phase）
-period = @trace（gamma（5,1），：period）
-amplitude = @trace（gamma（1,1），：幅度）
-for（i，x）in enumerate（xs）
-mu =幅度* sin（2 * pi * x /周期+相位）
-@trace（正常（mu，0.1），（：y，i））
-end
-返回
+@gen function sine_model(xs::Vector{Float64})
+    n = length(xs)
+    phase = @trace(uniform(0, 2 * pi), :phase)
+    period = @trace(gamma(5, 1), :period)
+    amplitude = @trace(gamma(1, 1), :amplitude)
+    for (i, x) in enumerate(xs)
+        mu = amplitude * sin(2 * pi * x / period + phase)
+        @trace(normal(mu, 0.1), (:y, i))
+    end
+    return n
 end;
 ```
 
 ```julia
-function render_sine_trace（trace; show_data = true）
-xs = get_args（trace）[1]
-xmin =最小值（xs）
-xmax =最大值（xs）
-如果是show_data
-ys = [trace [（：y，i）] for i = 1：length（xs）]
-散射（xs，ys，c =“黑色”）
-end
+function render_sine_trace(trace; show_data=true)
+    xs = get_args(trace)[1]
+    xmin = minimum(xs)
+    xmax = maximum(xs)
+    if show_data
+        ys = [trace[(:y, i)] for i=1:length(xs)]
+        scatter(xs, ys, c="black")
+    end
 
-阶段=追踪[：阶段]
-period = trace [：period]
-幅度=trace[：幅度]
+    phase = trace[:phase]
+    period = trace[:period]
+    amplitude = trace[:amplitude]
 
-test_points = collect（范围（xmin，stop = xmax，length = 100））
-plot（test_points，amplitude * sin。（2 * pi * test_points / period。+ phase））
+    test_points = collect(range(xmin, stop=xmax, length=100))
+    plot(test_points, amplitude * sin.(2 * pi * test_points / period .+ phase))
 
-ax = gca（）
-ax [：set_xlim]（（xmin，xmax））
-ax [：set_ylim]（（xmin，xmax））
+    ax = gca()
+    ax[:set_xlim]((xmin, xmax))
+    ax[:set_ylim]((xmin, xmax))
 end;
 ```
 
@@ -328,9 +328,9 @@ end
 
 ![png](output_49_0.png)
 
-## 3. 进行后验推断<a name="doing-inference"></a>
+## 3. 进行后验推断 <a name="doing-inference"></a>
 
-我们现在将提供 y 坐标的数据集，并尝试绘制有关生成数据的过程的推论。我们从以下数据集开始：
+我们将提供 y 坐标的数据集，并尝试绘制生成数据的过程的推理模型。我们从以下数据集开始：
 
 ```julia
 ys = [6.75003, 6.1568, 4.26414, 1.84894, 3.09686, 1.94026, 1.36411, -0.83959, -0.976, -1.93363, -2.91303];
@@ -343,41 +343,41 @@ scatter(xs, ys, color="black");
 
 ![png](output_52_0.png)
 
-我们假设线模型负责生成数据，并推断解释数据的斜率和截距值。
+我们假设数据由线形模型生成，并推理出能解释数据分布的斜率和截距。
 
-为此，我们编写了一个简单的*推理程序*，它采用我们假设的模型生成我们的数据，数据集和要执行的计算量，并返回从*posterior 分布中近似采样的函数的轨迹*根据观察到的数据，在功能的痕迹上。也就是说，推理程序将尝试找到一条很好地解释我们上面创建的数据集的 trace。我们可以检查该轨迹以找到适合数据的线的斜率和截距的估计。
+为此，我们编写了一个简单的 _推理程序_，它采用了我们认为的模型，该模型生成了我们的数据、数据集、和要执行的计算量，并依据函数的 trace，返回大致从 _posterior distribution_ 取样的函数，在给定的观察数据上。也就是说，推理程序将尝试找到一个能很好地解释我们上面创建的数据集的 trace。我们可以检查该 trace 以找到对能拟合数据的直线的斜率和截距的估计。
 
-像“importance*resampling”这样的函数希望我们提供一个\_model*和一个*choice map*来表示我们的数据集并将它与模型相关联。选择映射将模型中的随机选择地址映射到数据集中的值。在这里，我们想把像（（y，4）`这样的模型地址绑定到像`ys [4]`这样的数据集值：
+像 `importance_resampling` 这样的函数希望我们提供一个*model* 和一个 _choice map_ 来表示我们的数据集并将它与模型相关联。选择映射将模型中的随机选择的地址映射到我们数据集中的值。这里，我们想把如 `(:y, 4)` 这样的模型地址绑定到如 `ys[4]` 这样的数据集中的值：
 
 ```julia
 function do_inference(model, xs, ys, amount_of_computation)
 
-＃创建一个映射模型地址的选择图（：y，i）
-＃到观测值ys [i]。我们离开：斜坡和：拦截
-#constrained，因为我们希望它们被推断出来。
-观察= Gen.choicemap（）
-for（i，y）in enumerate（ys）
-观察[（：y，i）] = y
-end
+    # 创建一个映射模型地址的选择映射 (:y, i)
+    # 来观察 ys[i] 的值。我们将 :slope 和 :intercept 设置为无约束，
+    # 因为我们希望它们被推断出来。
+    observations = Gen.choicemap()
+    for (i, y) in enumerate(ys)
+        observations[(:y, i)] = y
+    end
 
-＃调用importance_resampling以获得可能的trace一致性
-＃与我们的观察。
-（trace，_）= Gen.importance_resampling（model，（xs，），observation，amount_of_computation）;
-返回痕迹
+    # 调用 importance_resampling 来获得一个大致的trace，
+    # 这个trace能与我们的观察一致
+    (trace, _) = Gen.importance_resampling(model, (xs,), observations, amount_of_computation);
+    return trace
 end;
 ```
 
 我们可以运行推理程序来获取 trace，然后可视化结果：
 
 ```julia
-trace = do_inference（line_model，xs，ys，100）
-图（figsize =（3,3））
-render_trace（痕量）;
+trace = do_inference(line_model, xs, ys, 100)
+figure(figsize=(3,3))
+render_trace(trace);
 ```
 
-![png](output_56_0.png）
+![png](output_56_0.png)
 
-我们看到`important_resampling'找到了合理的斜率和截距来解释数据。我们还可以在网格中可视化许多样本：
+我们看到 `importance_resampling` 找到了合理的斜率和截距来解释数据。我们还可以在网格中可视化许多样本：
 
 ```julia
 traces = [do_inference(line_model, xs, ys, 100) for _=1:10];
@@ -386,21 +386,21 @@ grid(render_trace, traces)
 
 ![png](output_58_0.png)
 
-我们在这里可以看到存在一些不确定性：由于我们的数据有限，我们无法 100％确定该线的确切位置。通过在一个图中而不是在网格中可视化所有迹线，我们可以更好地了解后验分布的可变性。每个 trace 将具有相同的观察数据点，因此我们仅根据第一个 trace 中的值绘制一次：
+我们可以看到这里存在一些不确定性：由于我们的数据有限，我们无法 100％确定直线的确切位置。通过在一个图中而不是在网格中可视化所有 trace，我们可以更好地了解后验分布的可变性。每个 trace 将具有相同的观察数据点，因此我们仅根据第一个 trace 中的值绘制一次：
 
 ```julia
 function overlay(renderer, traces; same_data=true, args...)
-渲染器（痕迹[1]，show_data = true，args ...）
-对于i = 2：长度（迹线）
-渲染器（traces [i]，show_data =！same_data，args ...）
-end
+    renderer(traces[1], show_data=true, args...)
+    for i=2:length(traces)
+        renderer(traces[i], show_data=!same_data, args...)
+    end
 end;
 ```
 
 ```julia
 traces = [do_inference(line_model, xs, ys, 100) for _=1:10];
-图（figsize =（3,3））
-overlay（render_trace，traces）;
+figure(figsize=(3,3))
+overlay(render_trace, traces);
 ```
 
 ![png](output_61_0.png)
@@ -409,7 +409,8 @@ overlay（render_trace，traces）;
 
 ### 练习
 
-上面的结果是为'amount_of_computation = 100`获得的。运行该算法，将此值设置为“1”，“10”和“1000”等。哪个值似乎是准确性和运行时间之间的良好折衷？讨论。
+上面的结果是在'amount_of_computation = 100`时获得的。运行该算法，将此值设置为`1`，`10`， 和`1000`
+等。哪个值看起来是准确性和运行时间之间的良好折衷？讨论一下吧。
 
 ---
 
@@ -422,32 +423,32 @@ ys_sine = [2.89, 2.22, -0.612, -0.522, -2.65, -0.133, 2.70, 2.77, 0.425, -2.11, 
 ```
 
 ```julia
-图（figsize =（3,3））;
-scatter（xs，ys_sine，color =“black”）;
+figure(figsize=(3, 3));
+scatter(xs, ys_sine, color="black");
 ```
 
 ![png](output_65_0.png)
 
-编写一个推理程序，生成解释此数据集的`sine_model`的痕迹。可视化生成的迹线分布。暂时将该期间的先前分布更改为“gamma（1,1）”（通过更改并重新运行从上一个练习中定义`sine_model`的单元格）。你可以解释在这个时期之前使用'gamma（1,1）`vs`gamma（5,1）`的推理结果的差异吗？你需要多少计算才能取得好成绩？
+编写一个推理程序，生成能解释此数据集的`sine_model`的 trace。可视化生成的 trace 的分布。暂时将该周期的先验分布更改为 `gamma(1, 1)` （通过更改并重新运行从上一个练习中定义了`sine_model`的单元格）。你能解释在这个周期中，使用 `gamma(1, 1)` 和之前使用的 `gamma(5, 1)`的推理结果的差异吗？你需要多少计算量才能取得好结果？
 
-## 4。预测新数据<a name="predicting-data"> </a>
+## 4. 预测新数据 <a name="predicting-data"></a>
 
-使用 API 方法[`generate`]（https://probcomp.github.io/Gen/dev/ref/gfi/#Gen.generate），我们可以生成一个生成函数的痕迹，其中某些随机值的值选择受限于给定的值。约束是选择映射，其将受约束的随机选择的地址映射到它们期望的值。
+使用 API 方法[`generate`](https://probcomp.github.io/Gen/dev/ref/gfi/#Gen.generate)，我们可以生成一个生成函数的 trace，其中特定的随机选择值受给定值的约束。约束是选择映射，它将受约束的随机选择的地址映射到它们期望的值。
 
 例如：
 
 ```julia
-constraints = Gen.choicemap（）
-约束[：slope] = 0。
-约束[：intercept] = 0。
-（trace，_）= Gen.generate（line_model，（xs，），constraints）
-图（figsize =（3,3））
-render_trace（痕量）;
+constraints = Gen.choicemap()
+constraints[:slope] = 0.
+constraints[:intercept] = 0.
+(trace, _) = Gen.generate(line_model, (xs,), constraints)
+figure(figsize=(3,3))
+render_trace(trace);
 ```
 
 ![png](output_68_0.png)
 
-注意，对应于 y 坐标的随机选择仍然是随机的。将该单元运行几次以验证这一点。
+注意，对应于 y 坐标的随机选择仍然是随机的。将该单元格多运行几次，验证这一点。
 
 我们将使用运行生成函数的约束执行的能力，通过运行模型生成函数的新执行来预测新坐标系下 y 坐标的值，其中对应于参数的随机选择被约束到它们推断值。我们提供了一个下面的函数（`predict_new_data`），它接受一个 trace 和一个新的 x 坐标向量，并返回一个对应于`new_xs`中 x 坐标的预测 y 坐标向量。我们设计了这个函数来处理多个模型，所以参数地址集是一个参数（`param_addrs`）：
 

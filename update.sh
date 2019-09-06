@@ -1,4 +1,4 @@
 #!/bin/sh
 git add -A
-git commit -am "init 50% `date`"
+git commit -am "progress 52% `date`"
 git push
