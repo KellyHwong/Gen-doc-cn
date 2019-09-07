@@ -450,212 +450,214 @@ render_trace(trace);
 
 注意，对应于 y 坐标的随机选择仍然是随机的。将该单元格多运行几次，验证这一点。
 
-我们将使用运行生成函数的约束执行的能力，通过运行模型生成函数的新执行来预测新坐标系下 y 坐标的值，其中对应于参数的随机选择被约束到它们推断值。我们提供了一个下面的函数（`predict_new_data`），它接受一个 trace 和一个新的 x 坐标向量，并返回一个对应于`new_xs`中 x 坐标的预测 y 坐标向量。我们设计了这个函数来处理多个模型，所以参数地址集是一个参数（`param_addrs`）：
+我们将使用生成函数的受约束执行的办法，通过重新运行模型生成函数，来预测对应于新的 x 坐标的 y 坐标。 其中，模型生成函数中的随机选择对应已经被约束到推理值的参数，我们提供下面的函数 (`predict_new_data`) ，它接受一个 trace 和一个新的 x 坐标向量，并返回一个对应于 `new_xs` 中 x 坐标的被预测的 y 坐标向量。我们设计了这个函数来处理多个模型，所以参数地址集是一个参数 (`param_addrs`)：
 
 ```julia
-function predict_new_data（model，trace，new_xs :: Vector {Float64}，param_addrs）
+function predict_new_data(model, trace, new_xs::Vector{Float64}, param_addrs)
 
-＃从推断的trace中复制参数值（`trace`）
-＃成为一组新的约束。
-constraints = Gen.choicemap（）
-对于param_addrs中的addr
-约束[addr] = trace [addr]
-end
+    # 从推断的trace (`trace`) 值中复制参数
+    # 到一组新的约束。
+    constraints = Gen.choicemap()
+    for addr in param_addrs
+        constraints[addr] = trace[addr]
+    end
 
-＃使用新的x坐标和参数运行模型
-＃固定为推断值
-（new_trace，_）= Gen.generate（model，（new_xs，），constraints）
+    # 使用新的x坐标，
+    # 和固定为推测值的参数，运行模型
+    (new_trace, _) = Gen.generate(model, (new_xs,), constraints)
 
-＃拉出y值并返回它们
-ys = [new_trace [（：y，i）] for i = 1：length（new_xs）]
-返回ys
+    # 取得y值并返回它们
+    ys = [new_trace[(:y, i)] for i=1:length(new_xs)]
+    return ys
 end;
 ```
 
-下面的单元定义了一个函数，它首先对观察到的数据集`（xs，ys）`进行推理，然后运行`predict_new_data`来生成预测的 y 坐标。它重复这个过程`num_traces`次，并返回得到的 y 坐标向量的向量。
+下面的单元定义了一个函数，它首先对观察到的数据集 `(xs, ys)` 进行推理，然后运行 `predict_new_data` 来生成预测的 y 坐标。它重复这个过程 `num_traces` 次，并返回得到的 y 坐标向量构成的向量。
 
 ```julia
-函数infer_and_predict（model，xs，ys，new_xs，param_addrs，num_traces，amount_of_computation）
-pred_ys = []
-对于i = 1：num_traces
-trace = do_inference（model，xs，ys，amount_of_computation）
-推！（pred_ys，predict_new_data（model，trace，new_xs，param_addrs））
-end
-pred_ys
+function infer_and_predict(model, xs, ys, new_xs, param_addrs, num_traces, amount_of_computation)
+    pred_ys = []
+    for i=1:num_traces
+        trace = do_inference(model, xs, ys, amount_of_computation)
+        push!(pred_ys, predict_new_data(model, trace, new_xs, param_addrs))
+    end
+    pred_ys
 end;
 ```
 
-最后，我们定义一个单元格，将观察到的数据集“（xs，ys）”绘制为红点，将预测数据绘制为小黑点。
+最后，我们定义一个单元格，将观察到的数据集 `(xs, ys)` 画成红色的点，将预测数据画成黑色的小点。
 
 ```julia
-function plot_predictions（xs，ys，new_xs，pred_ys）
-散射（xs，ys，color =“red”）
-对于pred_ys中的pred_ys_single
-scatter（new_xs，pred_ys_single，color =“black”，s = 1，alpha = 0.3）
-end
+function plot_predictions(xs, ys, new_xs, pred_ys)
+    scatter(xs, ys, color="red")
+    for pred_ys_single in pred_ys
+        scatter(new_xs, pred_ys_single, color="black", s=1, alpha=0.3)
+    end
 end;
 ```
 
-回想一下线模型的原始数据集。x 坐标跨越-5 到 5 的间隔。
+回顾线形模型的原始数据集。x 坐标跨越从-5 到 5 的间隔。
 
 ```julia
-图（figsize =（3,3））
-scatter（xs，ys，color =“red”）;
+figure(figsize=(3,3))
+scatter(xs, ys, color="red");
 ```
 
 ![png](output_77_0.png)
 
-我们将使用参数的推断值来预测未观察到数据的区间 5 到 10 中的 x 坐标的 y 坐标。我们还将在-5 到 5 的区间内预测新数据，并将这些数据与原始观测数据进行比较。从推断参数预测新数据，并将这些新数据与观测数据进行比较是*后验预测检查*背后的核心思想。本教程并不打算对检查模型质量的技术进行严格的概述，而是打算给出高层次的直觉。
+我们将使用参数的推断值来预测对应于未观察到数据的区间 5 到 10 中的 x 坐标的 y 坐标。我们也会在-5 到 5 的区间内预测新数据，并将这些数据与原始观测数据进行比较。从推测的参数预测新数据，并将这些新数据与观测数据进行比较是 _后验预测检查_ 背后的核心思想。本教程并不打算对检查模型质量的技术进行严格的概述，而是打算给出高层级的教程。
 
 ```julia
 new_xs = collect(range(-5, stop=10, length=100));
 ```
 
-我们生成并绘制预测数据：
+我们生成并绘制预测的数据：
 
 ```julia
-pred_ys = infer_and_predict（line_model，xs，ys，new_xs，[：slope，：intercept]，20,1000）
-图（figsize =（3,3））
-plot_predictions（xs，ys，new_xs，pred_ys）
+pred_ys = infer_and_predict(line_model, xs, ys, new_xs, [:slope, :intercept], 20, 1000)
+figure(figsize=(3,3))
+plot_predictions(xs, ys, new_xs, pred_ys)
 ```
 
 ![png](output_81_0.png)
 
-结果看起来合理，无论是在观察数据的区间内还是在右侧的外推预测中。
+结果看起来合理，无论是在观察数据的区间内还是在右侧的推断预测中。
 
-现在考虑使用以下数据集运行相同的实验，其具有明显更多的噪声。
+现在考虑使用以下数据集运行相同的实验，它具有明显更多的噪声。
 
 ```julia
-ys_noisy = [5.092,4.781,2.46815,1.23047,0.903318,1.11819,2.10808,1.09198,0.0203789，-2.05068,2.66031];
+ys_noisy = [5.092, 4.781, 2.46815, 1.23047, 0.903318, 1.11819, 2.10808, 1.09198, 0.0203789, -2.05068, 2.66031];
 ```
 
 ```julia
-pred_ys = infer_and_predict（line_model，xs，ys_noisy，new_xs，[：slope，：intercept]，20,1000）
-图（figsize =（3,3））
-plot_predictions（xs，ys_noisy，new_xs，pred_ys）
+pred_ys = infer_and_predict(line_model, xs, ys_noisy, new_xs, [:slope, :intercept], 20, 1000)
+figure(figsize=(3,3))
+plot_predictions(xs, ys_noisy, new_xs, pred_ys)
 ```
 
 ![png](output_85_0.png)
 
-看起来生成的数据比观察到数据的情况下的观察数据噪声更小，并且看起来预测的数据过于自信。这表明我们的模型是错误指定的。在我们的例子中，这是因为我们假设噪音的值为 0.1。但是，数据中的实际噪声似乎要大得多。我们可以通过使噪声随机选择并将其值与其他参数一起推断来纠正这一点。
+看起来生成的数据比观察到数据的在被观察数据的区域噪声更小，并且看起来预测的数据过于自信。这是我们的模型欠具体化的表现。在我们的例子中，这是因为我们假设噪音的值为 0.1。但是，数据中的实际噪声似乎要大得多。我们也可以通过选择噪声并将其值与其他参数一起推断来纠正这一点。
 
-我们首先编写一个新版本的线模型，它从一个'gamma（1,1）`先验分布中随机选择噪声。
+我们首先编写一个新版本的线形模型，它从符合 `gamma(1, 1)` 的先验分布中随机选择噪声。
 
 ```julia
-@gen function line_model_2（xs :: Vector {Float64}）
-n =长度（xs）
-slope = @trace（normal（0,1），：slope）
-intercept = @trace（normal（0,2），：intercept）
-noise = @trace（gamma（1,1）,: noise）
-for（i，x）in enumerate（xs）
-@trace（正常（斜率* x +截距，噪音），（：y，i））
-end
-没有回报
+@gen function line_model_2(xs::Vector{Float64})
+    n = length(xs)
+    slope = @trace(normal(0, 1), :slope)
+    intercept = @trace(normal(0, 2), :intercept)
+    noise = @trace(gamma(1, 1), :noise)
+    for (i, x) in enumerate(xs)
+        @trace(normal(slope * x + intercept, noise), (:y, i))
+    end
+    return nothing
 end;
 ```
 
-然后，我们在`ys`数据集上使用推断未修改和修改的模型来比较预测：
+然后，我们在 `ys` 数据集上通过推断未修改和修改的模型来比较预测的结果：
 
 ```julia
 figure(figsize=(6,3))
 
-pred_ys = infer_and_predict（line_model，xs，ys，new_xs，[：slope，：intercept]，20,1000）
-子图（1,2,1）
-标题（“固定噪音水平”）
-plot_predictions（xs，ys，new_xs，pred_ys）
+pred_ys = infer_and_predict(line_model, xs, ys, new_xs, [:slope, :intercept], 20, 1000)
+subplot(1, 2, 1)
+title("Fixed noise level")
+plot_predictions(xs, ys, new_xs, pred_ys)
 
-pred_ys = infer_and_predict（line_model_2，xs，ys，new_xs，[：slope，：intercept，：noise]，20,10000）
-子图（1,2,2）
-标题（“推断的噪音水平”）
-plot_predictions（xs，ys，new_xs，pred_ys）
+pred_ys = infer_and_predict(line_model_2, xs, ys, new_xs, [:slope, :intercept, :noise], 20, 10000)
+subplot(1, 2, 2)
+title("Inferred noise level")
+plot_predictions(xs, ys, new_xs, pred_ys)
 ```
 
 ![png](output_90_0.png)
 
-请注意，使用修改后的模型进行的预测存在更多不确定性。
+注意，使用修改后的模型进行的预测存在更多不确定性。
 
-我们还在`ys_noisy`数据集上使用推断未修改和修改的模型来比较预测：
+我们也在 `ys_noisy` 数据集上通过推断未修改和修改的模型来比较预测结果：
 
 ```julia
-图（figsize =（6,3））
+figure(figsize=(6,3))
 
-pred_ys = infer_and_predict（line_model，xs，ys_noisy，new_xs，[：slope，：intercept]，20,1000）
-子图（1,2,1）
-标题（“固定噪音水平”）
-plot_predictions（xs，ys_noisy，new_xs，pred_ys）
 
-pred_ys = infer_and_predict（line_model_2，xs，ys_noisy，new_xs，[：slope，：intercept，：noise]，20,10000）
-子图（1,2,2）
-标题（“推断的噪音水平”）
-plot_predictions（xs，ys_noisy，new_xs，pred_ys）
+pred_ys = infer_and_predict(line_model, xs, ys_noisy, new_xs, [:slope, :intercept], 20, 1000)
+subplot(1, 2, 1)
+title("Fixed noise level")
+plot_predictions(xs, ys_noisy, new_xs, pred_ys)
+
+pred_ys = infer_and_predict(line_model_2, xs, ys_noisy, new_xs, [:slope, :intercept, :noise], 20, 10000)
+subplot(1, 2, 2)
+title("Inferred noise level")
+plot_predictions(xs, ys_noisy, new_xs, pred_ys)
+
 ```
 
 ![png](output_92_0.png)
 
-请注意，虽然未修改的模型非常过于自信，但修改后的模型具有适当的不确定性，同时仍然捕获一般的负面趋势。
+注意，虽然未修改的模型非常过于自信，但修改后的模型具有适当的不确定性，同时仍然捕获一般的负面趋势。
 
 ---
 
 ### 练习
 
-写一个修改版本的正弦模型，使噪声成为随机选择。将预测数据与未修改和修改模型的观察数据“infer_and_predict”和“plot_predictions”以及“ys_sine”和“ys_noisy”数据集进行比较。讨论结果。尝试使用的推理计算量。对于具有噪声随机选择的模型，推理计算量需要更高。
+编写一个修改版的正弦模型，使噪声变为随机选择。将预测数据与观测数据 `infer_and_predict` 和 `plot_predictions` 在未修改和修改后的模型上比较，同时针对 `ys_sine` 和 `ys_noisy` 数据集。并讨论结果。在推理使用的计算量上做实验。对于具有噪声随机选择的模型，推理计算量要更高。
 
 ### 答案
 
 ```julia
-@gen function sine_model_2（xs :: Vector {Float64}）
-n =长度（xs）
-phase = @trace（uniform（0,2 * pi），：phase）
-period = @trace（gamma（5,1），：period）
-amplitude = @trace（gamma（1,1），：幅度）
-noise = @trace（gamma（1,1）,: noise）
-for（i，x）in enumerate（xs）
-mu =幅度* sin（2 * pi * x /周期+相位）
-@trace（正常（mu，noise），（：y，i））
-end
-返回
+@gen function sine_model_2(xs::Vector{Float64})
+    n = length(xs)
+    phase = @trace(uniform(0, 2 * pi), :phase)
+    period = @trace(gamma(5, 1), :period)
+    amplitude = @trace(gamma(1, 1), :amplitude)
+    noise = @trace(gamma(1, 1), :noise)
+    for (i, x) in enumerate(xs)
+        mu = amplitude * sin(2 * pi * x / period + phase)
+        @trace(normal(mu, noise), (:y, i))
+    end
+    return n
 end;
 ```
 
 ```julia
-图（figsize =（6,3））
+figure(figsize=(6,3))
 
-pred_ys = infer_and_predict（sine_model，xs，ys_sine，new_xs，[：phase，：period，：amplitude]，20,100）
+pred_ys = infer_and_predict(sine_model, xs, ys_sine, new_xs, [:phase, :period, :amplitude], 20, 100)
 
-子图（1,2,1）
-标题（“固定噪音水平”）
-plot_predictions（xs，ys_sine，new_xs，pred_ys）
+subplot(1, 2, 1)
+title("Fixed noise level")
+plot_predictions(xs, ys_sine, new_xs, pred_ys)
 
-pred_ys = infer_and_predict（sine_model_2，xs，ys_sine，new_xs，[：phase，：period，：amplitude，：noise]，20,1000）
+pred_ys = infer_and_predict(sine_model_2, xs, ys_sine, new_xs, [:phase, :period, :amplitude, :noise], 20, 1000)
 
-子图（1,2,2）
-标题（“推断的噪音水平”）
-plot_predictions（xs，ys_sine，new_xs，pred_ys）
+subplot(1, 2, 2)
+title("Inferred noise level")
+plot_predictions(xs, ys_sine, new_xs, pred_ys)
 ```
 
 ![png](output_97_0.png)
 
 ```julia
-图（figsize =（6,3））
+figure(figsize=(6,3))
 
-pred_ys = infer_and_predict（sine_model，xs，ys_noisy，new_xs，[：phase，：period，：amplitude]，20,100）
+pred_ys = infer_and_predict(sine_model, xs, ys_noisy, new_xs, [:phase, :period, :amplitude], 20, 100)
 
-子图（1,2,1）
-标题（“固定噪音水平”）
-plot_predictions（xs，ys_noisy，new_xs，pred_ys）
+subplot(1, 2, 1)
+title("Fixed noise level")
+plot_predictions(xs, ys_noisy, new_xs, pred_ys)
 
-pred_ys = infer_and_predict（sine_model_2，xs，ys_noisy，new_xs，[：phase，：period，：amplitude，：noise]，20,1000）
+pred_ys = infer_and_predict(sine_model_2, xs, ys_noisy, new_xs, [:phase, :period, :amplitude, :noise], 20, 1000)
 
-子图（1,2,2）
-标题（“推断的噪音水平”）
-plot_predictions（xs，ys_noisy，new_xs，pred_ys）
+subplot(1, 2, 2)
+title("Inferred noise level")
+plot_predictions(xs, ys_noisy, new_xs, pred_ys)
 ```
 
 ![png](output_98_0.png)
 
-具有噪声推断的模型更能够避免对违反模型假设的数据集（`ys_noisy`）进行不准确的过度自信预测。
+具有噪声推断的模型更能够避免其在模型假设上有冲突的数据集 (`ys_noisy`) 上不准确和过度自信的预测。
 
-## 5。调用其他生成函数<a name="calling-functions"> </a>
+## 5. 调用其他生成函数 <a name="calling-functions"></a>
 
 除了随机选择外，生成函数还可以调用其他生成函数。为了说明这一点，我们将编写一个结合线模型和正弦模型的概率模型。该模型能够使用任一模型解释数据，并且选择哪个模型将取决于数据。这称为*模型选择*。
 
@@ -917,7 +919,7 @@ struct LeafNode <：Node
 end
 ```
 
-我们现在编写一个随机创建这样一棵树的生成函数。注意在此函数中使用递归来创建表示任意多个变化点的任意大树。另请注意，我们将地址命名空间`：left`和`：right`分配给对“generate_segments”的两次递归调用的调用。
+我们现在编写一个随机创建这样一棵树的生成函数。注意在此函数中使用递归来创建表示任意多个变化点的任意大树。另注意，我们将地址命名空间`：left`和`：right`分配给对“generate_segments”的两次递归调用的调用。
 
 ```julia
 @gen function generate_segments（l :: Float64，u :: Float64）
@@ -1025,7 +1027,7 @@ grid（render_changepoint_model_trace，traces）
 
 ![png](output_153_0.png)
 
-请注意，分段常量平均函数周围的可变量因 trace 而异。
+注意，分段常量平均函数周围的可变量因 trace 而异。
 
 现在我们对简单数据集进行推理：
 
@@ -1038,7 +1040,7 @@ grid（render_changepoint_model_trace，traces）
 
 我们看到，我们推断出解释数据的平均函数是一个非常高概率的常数。
 
-对于复杂数据集的推断，我们使用更多的计算。您可以尝试不同的计算量，以查看推理质量如何随着计算量的减少而降低。请注意，我们在本教程中使用了一个非常简单的通用推理算法，它实际上不适合这个更复杂的任务。在后面的教程中，我们将学习如何编写更有效的算法，以便在计算量大大减少的情况下获得准确的结果。无论推理算法如何，我们还将看到注释模型以获得更好性能的方法。
+对于复杂数据集的推断，我们使用更多的计算。您可以尝试不同的计算量，以查看推理质量如何随着计算量的减少而降低。注意，我们在本教程中使用了一个非常简单的通用推理算法，它实际上不适合这个更复杂的任务。在后面的教程中，我们将学习如何编写更有效的算法，以便在计算量大大减少的情况下获得准确的结果。无论推理算法如何，我们还将看到注释模型以获得更好性能的方法。
 
 ```julia
 trace = [do_inference（changepoint_model，xs_dense，ys_complex，100000）for _ = 1：12];
