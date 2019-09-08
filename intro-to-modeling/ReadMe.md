@@ -659,63 +659,63 @@ plot_predictions(xs, ys_noisy, new_xs, pred_ys)
 
 ## 5. 调用其他生成函数 <a name="calling-functions"></a>
 
-除了随机选择外，生成函数还可以调用其他生成函数。为了说明这一点，我们将编写一个结合线模型和正弦模型的概率模型。该模型能够使用任一模型解释数据，并且选择哪个模型将取决于数据。这称为*模型选择*。
+除了随机选择外，生成函数还可以调用其他生成函数。为了说明这一点，我们将编写一个结合了线形模型和正弦模型的概率模型。该模型能够使用任一模型解释数据，并且选择哪个模型将取决于数据。这称为 _模型选择_。
 
-生成函数可以通过三种方式调用另一种生成函数：
+生成函数可以通过三种方式调用另一个生成函数：
 
 - 使用常规的 Julia 函数调用语法
 
-- 使用带有地址的`@ trace` Gen 关键字：`@trace（<call>，<addr>）`
+- 使用带地址的 `@trace` Gen 关键字：`@trace(<call>, <addr>)`
 
-- 使用没有地址的`@ trace` Gen 关键字：`@trace（<call>）`
+- 使用不带地址的 `@trace` Gen 关键字：`@trace(<call>)`
 
-当使用常规函数调用语法调用时，不 trace 被调用函数所做的随机选择。当使用没有地址的`@trace`进行调用时，被调用函数的随机选择与调用者的随机选择放在相同的地址命名空间中。当使用`@trace（<call>，<addr>）`时，被调用者的随机选择放在命名空间`<addr>`下。
+当使用常规函数调用语法调用时，被调用函数所做的随机选择不会被 trace。当使用没有地址的 `@trace` 进行调用时，被调用函数的随机选择与调用者的随机选择放在相同的地址命名空间中。当使用 `@trace(<call>, <addr>)` 时，被调用者的随机选择放在命名空间 `<addr>` 下。
 
 ```julia
-@gen function foo（）
-@trace（normal（0,1），：y）
+@gen function foo()
+    @trace(normal(0, 1), :y)
 end
 
-@gen功能栏（）
-@trace（bernoulli（0.5），：x）
-@trace（FOO（））
+@gen function bar()
+    @trace(bernoulli(0.5), :x)
+    @trace(foo())
 end
 
-@gen function bar_using_namespace（）
-@trace（bernoulli（0.5），：x）
-@trace（foo（），：z）
+@gen function bar_using_namespace()
+    @trace(bernoulli(0.5), :x)
+    @trace(foo(), :z)
 end;
 ```
 
-我们首先显示`bar`采样的地址：
+我们首先显示 `bar` 取样的地址：
 
 ```julia
 trace = Gen.simulate(bar, ())
 println(Gen.get_choices(trace))
 ```
 
-│
-├──：y：-0.1555163501029882
-│
-└──：x：假
+    │
+    ├── :y : -0.1555163501029882
+    │
+    └── :x : false
 
-以及`bar_using_namespace`采样的地址：
+以及 `bar_using_namespace` 采样的地址：
 
 ```julia
 trace = Gen.simulate(bar_using_namespace, ())
 println(Gen.get_choices(trace))
 ```
 
-│
-├──：x：假
-│
-└──：z
-│
-└──：y：-0.3173884162416476
+    │
+    ├── :x : false
+    │
+    └── :z
+        │
+        └── :y : -0.3173884162416476
 
-将`@ trace`与命名空间一起使用可以帮助避免复杂模型的地址冲突。
+将 `@trace` 与命名空间一起使用对避免复杂模型中的地址冲突有帮助。
 
-分层地址表示为 Julia`At pair`，其中该对的第一个元素是地址的第一个元素，该对的第二个元素是地址的其余部分：
+分层地址表示为一个 Julia `At pair`，其中元组的第一个元素是地址的第一个元素，第二个元素是地址的剩余部分：
 
 ```julia
 trace[Pair(:z, :y)]
@@ -723,7 +723,7 @@ trace[Pair(:z, :y)]
 
     -0.3173884162416476
 
-Julia 使用`=>`运算符作为`Pair`构造函数的简写，因此我们可以访问分层地址的选项，如：
+Julia 使用 `=>` 运算符作为 `Pair` 构造函数的简写，因此我们可以访问分层地址的（随机）选择，比如：
 
 ```julia
 trace[:z => :y]
@@ -731,7 +731,7 @@ trace[:z => :y]
 
     -0.3173884162416476
 
-如果我们有一个包含两个以上元素的分层地址，我们可以通过链接`=>`运算符来构造地址：
+如果我们有一个包含两个以上元素的分层地址，我们可以通过链式操作 `=>` 运算符来构造地址：
 
 ```julia
 @gen function baz()
@@ -745,7 +745,7 @@ trace[:a => :z => :y]
 
     1.2035666821158528
 
-注意`=>`运算符关联权限，所以这相当于：
+确定 `=>` 运算符是正确关联的，这相当于：
 
 ```julia
 trace[Pair(:a, Pair(:z, :y))]
@@ -753,54 +753,54 @@ trace[Pair(:a, Pair(:z, :y))]
 
     1.2035666821158528
 
-现在，我们编写了一个生成函数，它结合了线和正弦模型。它使伯努利随机选择（例如，返回真或假的硬币翻转），确定两个模型中的哪一个将生成数据。
+现在，我们编写一个结合了线形模型和正弦模型的生成函数。它进行伯努利随机选择（例如，返回真或假的硬币翻转），确定哪个模型生成数据。
 
 ```julia
-@gen function combined_model（xs :: Vector {Float64}）
-if @trace（bernoulli（0.5），：is_line）
-@trace（line_model_2（XS））
-其他
-@trace（sine_model_2（XS））
-end
+@gen function combined_model(xs::Vector{Float64})
+    if @trace(bernoulli(0.5), :is_line)
+        @trace(line_model_2(xs))
+    else
+        @trace(sine_model_2(xs))
+    end
 end;
 ```
 
-我们还为这个函数的 trace 编写了一个可视化：
+我们还为这个函数的 trace 进行了可视化：
 
 ```julia
-function render_combined（trace; show_data = true）
-如果trace[：is_line]
-render_trace（trace，show_data = show_data）
-其他
-render_sine_trace（trace，show_data = show_data）
-end
+function render_combined(trace; show_data=true)
+    if trace[:is_line]
+        render_trace(trace, show_data=show_data)
+    else
+        render_sine_trace(trace, show_data=show_data)
+    end
 end;
 ```
 
-我们可以看到一些痕迹，并且有时会看到线性数据和其他时间的正弦数据。
+我们可视化一些 trace，可以看到有时候它取样线性数据，有时候它取样正弦数据。
 
 ```julia
-traces = [Gen.simulate（combined_model，（xs，））for = = 1：12];
-网格（render_combined，trace）
+traces = [Gen.simulate(combined_model, (xs,)) for _=1:12];
+grid(render_combined, traces)
 ```
 
 ![png](output_121_0.png)
 
-我们在`ys`数据集和`ys_sine`数据集上使用这个组合模型进行推理。
+我们在 `ys` 数据集和 `ys_sine` 数据集上使用这个组合模型进行推理。
 
 ```julia
-图（figsize =（6,3））
-子图（1,2,1）
-trace = [do_inference（combined_model，xs，ys，10000）for _ = 1:10];
-overlay（render_combined，traces）
-子图（1,2,2）
-trace = [do_inference（combined_model，xs，ys_sine，10000）for _ = 1:10];
-overlay（render_combined，traces）
+figure(figsize=(6,3))
+subplot(1, 2, 1)
+traces = [do_inference(combined_model, xs, ys, 10000) for _=1:10];
+overlay(render_combined, traces)
+subplot(1, 2, 2)
+traces = [do_inference(combined_model, xs, ys_sine, 10000) for _=1:10];
+overlay(render_combined, traces)
 ```
 
 ![png](output_123_0.png)
 
-结果应该表明，为'ys`数据集推断了线模型，并推断了`ys_sine`数据集的正弦波模型。
+结果应该表明，对 'ys`数据集使用线形模型进行了推断，对`ys_sine` 数据集使用正弦模型进行了推断。
 
 ---
 
@@ -819,8 +819,8 @@ overlay（render_combined，traces）
 提示：为避免在模型和渲染代码之间引入代码重复，请使用生成函数的返回值。
 
 ```julia
-@gen function line_model_refactored（）
-＃<您的代码在这里>
+@gen function line_model_refactored()
+    # < 你的代码 >
 end;
 ```
 
