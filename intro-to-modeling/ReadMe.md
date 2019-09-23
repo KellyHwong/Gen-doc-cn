@@ -806,264 +806,266 @@ overlay(render_combined, traces)
 
 ### 练习
 
-构造一个数据集，对于该数据集，线或正弦波模型是否最佳是不明确的。使用`render_combined`可视化推断的轨迹以说明模糊性。编写一个程序，该程序获取数据集并返回由正弦波模型生成数据的后验概率的估计值，并在您的数据集上运行它。
+构造一个数据集，使得直线模型，还是正弦模型，哪个是最好的并不明确。使用 `render_combined` 来可视化推断的 traces 以说明最优模型的不确定性。编写一个程序，该程序接受数据集并返回由正弦波模型生成的数据的后验概率的估计值，在您的数据集上运行它。
 
-提示：要估计正弦波模型生成数据的后验概率，多次运行推理程序以计算大量迹线，然后计算“：is_line”为假的那些迹线的分数。
+提示：要估计正弦波模型生成的数据的后验概率，多次运行推理程序以计算大量的 trace，然后计算 `:is_line` 为假的那些迹线的比重。
 
 ---
 
 ### 练习
 
-在`line_model_2`和`sine_model_2`之间存在重复的代码。重构模型以减少代码重复并提高代码的可读性。重新运行上面的实验并确认结果在质量上是相同的。您可能需要编写新的渲染功能。尽量避免在模型和渲染代码之间引入代码重复。
+在 `line_model_2` 和 `sine_model_2` 之间存在重复的代码。重构模型以减少代码重复并提高代码的可读性。重新运行上面的实验并确认结果在质量上是相同的。你可能需要编写新的渲染函数。尽量避免在模型和渲染代码之间引入代码重复。
 
 提示：为避免在模型和渲染代码之间引入代码重复，请使用生成函数的返回值。
 
 ```julia
 @gen function line_model_refactored()
-    # < 你的代码 >
+    # < your code here >
 end;
 ```
 
 ```julia
-@gen函数sine_model_refactored（）
-＃<您的代码在这里>
+@gen function sine_model_refactored()
+    # < your code here >
 end;
 ```
 
 ```julia
-@gen function combined_model_refactored（xs :: Vector {Float64}）
-＃<您的代码在这里>
+@gen function combined_model_refactored(xs::Vector{Float64})
+    # < your code here >
 end;
 ```
 
 ```julia
-function render_combined_refactored（trace; show_data = true）
-xs = Gen.get_args（trace）[1]
-xmin =最小值（xs）
-xmax =最大值（xs）
-如果是show_data
-ys = [trace [（：y，i）] for i = 1：length（xs）]
-散射（xs，ys，c =“黑色”）
-end
+function render_combined_refactored(trace; show_data=true)
+    xs = Gen.get_args(trace)[1]
+    xmin = minimum(xs)
+    xmax = maximum(xs)
+    if show_data
+        ys = [trace[(:y, i)] for i=1:length(xs)]
+        scatter(xs, ys, c="black")
+    end
 
-＃<您的代码在这里>
+    # < your code here >
 
-ax = gca（）
-ax [：set_xlim]（（xmin，xmax））
-ax [：set_ylim]（（xmin，xmax））
+    ax = gca()
+    ax[:set_xlim]((xmin, xmax))
+    ax[:set_ylim]((xmin, xmax))
 end;
 
 ```
 
 ```julia
-图（figsize =（6,3））
-子图（1,2,1）
-trace = [do_inference（combined_model_refactored，xs，ys，10000）for _ = 1:10];
-overlay（render_combined_refactored，traces）
-子图（1,2,2）
-trace = [do_inference（combined_model_refactored，xs，ys_sine，10000）for _ = 1:10];
-overlay（render_combined_refactored，traces）
+figure(figsize=(6,3))
+subplot(1, 2, 1)
+traces = [do_inference(combined_model_refactored, xs, ys, 10000) for _=1:10];
+overlay(render_combined_refactored, traces)
+subplot(1, 2, 2)
+traces = [do_inference(combined_model_refactored, xs, ys_sine, 10000) for _=1:10];
+overlay(render_combined_refactored, traces)
 ```
 
-## 6。使用无限数量的参数进行建模<a name="infinite-space"> </a>
+## 6. 使用不限数量的参数进行建模 <a name="infinite-space"></a>
 
-Gen 的内置建模语言可用于表达使用无限数量参数的模型。本节将引导您完成数据模型的开发，该模型不是先验地指定模型复杂性的上限，而是推断模型的复杂性以及参数。这是*贝叶斯非参数*模型的简单示例。
+Gen 的内置建模语言可用于表达使用不限参数数量的模型。本节将引导您完成数据模型的开发，该模型不是先验地指定模型复杂性的上限，而是推测模型的复杂性以及所需参数。这是 _贝叶斯非参数_ 模型的简单示例。
 
 我们将考虑两个数据集：
 
 ```julia
-xs_dense = collect（范围（-5，停止= 5，长度= 50））
-ys_simple = fill（1。，length（xs_dense））。+ randn（length（xs_dense））* 0.1
-ys_complex = [Int（floor（abs（x / 3）））％2 == 0？2：0表示xs_dense中的x。+ randn（长度（xs_dense））* 0.1;
+xs_dense = collect(range(-5, stop=5, length=50))
+ys_simple = fill(1., length(xs_dense)) .+ randn(length(xs_dense)) * 0.1
+ys_complex = [Int(floor(abs(x/3))) % 2 == 0 ? 2 : 0 for x in xs_dense] .+ randn(length(xs_dense)) * 0.1;
 ```
 
 ```julia
-图（figsize =（6,3））
+figure(figsize=(6,3))
 
-子图（1,2,1）
-标题（ “YS-简单”）
-scatter（xs_dense，ys_simple，color =“black”，s = 10）
-gca（）[：set_ylim]（（ -  1,3））
+subplot(1, 2, 1)
+title("ys-simple")
+scatter(xs_dense, ys_simple, color="black", s=10)
+gca()[:set_ylim]((-1, 3))
 
-子图（1,2,2）
-标题（ “YS-复合物”）
-scatter（xs_dense，ys_complex，color =“black”，s = 10）
-gca（）[：set_ylim]（（ -  1,3））
+subplot(1, 2, 2)
+title("ys-complex")
+scatter(xs_dense, ys_complex, color="black", s=10)
+gca()[:set_ylim]((-1, 3))
 ```
 
 ![png](output_136_0.png)
 
-（-1,3）
+    (-1, 3)
 
-左侧的数据似乎最好解释为具有一些噪音的连续函数。右侧的数据集似乎包含两个变更点，变更点之间具有常量函数。我们想要一个不先验地选择数据中变更点数量的模型。为此，我们将递归地将间隔划分为区域。我们定义了一个表示间隔二叉树的 Julia 数据结构;每个叶节点表示函数恒定的区域。
+左侧的数据似乎解释成具有一些噪音的常数函数最好。右侧的数据集似乎包含两个变更点，变更点之间是常数函数。我们想要一个不先验地选择数据中变更点数量的模型。为此，我们将递归地将区间划分为区域。我们定义了一个表示区间的二叉树的 Julia 数据结构；每个叶节点表示函数值恒定的区域。
 
 ```julia
 struct Interval
-升:: Float64
-ü:: Float64
+    l::Float64
+    u::Float64
 end
 ```
 
 ```julia
-抽象类型节点end
+abstract type Node end
 
-struct InternalNode <：Node
-左::节点
-右::节点
-区间::区间
+struct InternalNode <: Node
+    left::Node
+    right::Node
+    interval::Interval
 end
 
-struct LeafNode <：Node
-值:: Float64
-区间::区间
+struct LeafNode <: Node
+    value::Float64
+    interval::Interval
 end
 ```
 
-我们现在编写一个随机创建这样一棵树的生成函数。注意在此函数中使用递归来创建表示任意多个变化点的任意大树。另注意，我们将地址命名空间`：left`和`：right`分配给对“generate_segments”的两次递归调用的调用。
+现在我们编写一个随机创建这样一棵树的生成函数。注意在此函数中使用递归来创建表示任意多个变化点的任意大小的树。另外注意，我们将 `:left` 和 `:right` 的地址命名空间分配给要对 "generate_segments" 进行两次递归调用的递归调用。
 
 ```julia
-@gen function generate_segments（l :: Float64，u :: Float64）
-interval = Interval（l，u）
-if @trace（bernoulli（0.7），：isleaf）
-value = @trace（normal（0,1），：value）
-return LeafNode（value，interval）
-其他
-frac = @trace（beta（2,2），：frac）
-mid = l +（u  -  l）* frac
-left = @trace（generate_segments（l，mid），：left）
-right = @trace（generate_segments（mid，u），：right）
-return InternalNode（left，right，interval）
-end
+@gen function generate_segments(l::Float64, u::Float64)
+    interval = Interval(l, u)
+    if @trace(bernoulli(0.7), :isleaf)
+        value = @trace(normal(0, 1), :value)
+        return LeafNode(value, interval)
+    else
+        frac = @trace(beta(2, 2), :frac)
+        mid  = l + (u - l) * frac
+        left = @trace(generate_segments(l, mid), :left)
+        right = @trace(generate_segments(mid, u), :right)
+        return InternalNode(left, right, interval)
+    end
 end;
 ```
 
-我们还定义了一些辅助函数来可视化`generate_segments`函数的痕迹。
+我们还定义了一些辅助函数来可视化`generate_segments`函数的 trace。
 
 ```julia
-function render_node（node :: LeafNode）
-plot（[node.interval.l，node.interval.u]，[node.value，node.value]）
+function render_node(node::LeafNode)
+    plot([node.interval.l, node.interval.u], [node.value, node.value])
 end
 
-function render_node（node :: InternalNode）
-render_node（node.left）
-render_node（node.right）
+function render_node(node::InternalNode)
+    render_node(node.left)
+    render_node(node.right)
 end;
 ```
 
 ```julia
-函数render_segments_trace（trace）
-node = get_retval（trace）
-render_node（节点）
-ax = gca（）
-ax [：set_xlim]（（0,1））
-ax [：set_ylim]（（ -  3,3））
+function render_segments_trace(trace)
+    node = get_retval(trace)
+    render_node(node)
+    ax = gca()
+    ax[:set_xlim]((0, 1))
+    ax[:set_ylim]((-3, 3))
 end;
 ```
 
-我们从这个函数生成 12 个 trace，并在下面显示它们。我们绘制了每次运行生成函数所采样的分段常数函数。不同的常数段以不同的颜色显示。运行单元格几次，以更好地了解由生成函数表示的函数的分布。
+我们从这个函数生成 12 个 trace，并在下面显示它们。我们绘制了每次运行生成函数所采样的分段常数函数。不同的常数段以不同的颜色显示。多运行单元格几次，以更好地感受由生成函数表示的函数的分布。
 
 ```julia
-trace = [Gen.simulate（generate_segments，（0，））for i = 1:12]
-网格（render_segments_trace，trace）
+traces = [Gen.simulate(generate_segments, (0., 1.)) for i=1:12]
+grid(render_segments_trace, traces)
 ```
 
 ![png](output_146_0.png)
 
-因为我们只对 30％概率的区间进行细分，所以这些采样迹线中的大部分只有一个区段。
+因为我们只对 30%概率的区间进行细分，所以这些采样得到的 trace 中大部分只有一个分段。
 
-现在我们已经生成了一个生成随机分段常数函数的生成函数，我们编写了一个模型，它将噪声添加到生成的常量函数中，以生成 y 坐标的数据集。噪音水平将是随机选择。
+现在我们已经有了一个生成随机分段常数函数的生成函数，我们编写了一个模型，添加噪声到生成的常数函数中，以生成 y 坐标的数据集。噪音水平将是随机选择。
 
 ```julia
-#get_value_at在二叉树中搜索
-＃包含一些值的叶节点。
-function get_value_at（x :: Float64，node :: LeafNode）
-@assert x> = node.interval.l && x <= node.interval.u
-return node.value
+# get_value_at searches a binary tree for
+# the leaf node containing some value.
+function get_value_at(x::Float64, node::LeafNode)
+    @assert x >= node.interval.l && x <= node.interval.u
+    return node.value
 end
 
-function get_value_at（x :: Float64，node :: InternalNode）
-@assert x> = node.interval.l && x <= node.interval.u
-如果x <= node.left.interval.u
-get_value_at（x，node.left）
-其他
-get_value_at（x，node.right）
-end
+已编辑
+function get_value_at(x::Float64, node::InternalNode)
+
+    @assert x >= node.interval.l && x <= node.interval.u
+    if x <= node.left.interval.u
+        get_value_at(x, node.left)
+    else
+        get_value_at(x, node.right)
+    end
 end
 
-＃完整模型
-@gen function changepoint_model（xs :: Vector {Float64}）
-node = @trace（generate_segments（minimum（xs），maximum（xs）），：tree）
-noise = @trace（gamma（1,1）,: noise）
-for（i，x）in enumerate（xs）
-@trace（normal（get_value_at（x，node），noise），（：y，i））
-end
-返回节点
+# Out full model
+@gen function changepoint_model(xs::Vector{Float64})
+    node = @trace(generate_segments(minimum(xs), maximum(xs)), :tree)
+    noise = @trace(gamma(1, 1), :noise)
+    for (i, x) in enumerate(xs)
+        @trace(normal(get_value_at(x, node), noise), (:y, i))
+    end
+    return node
 end;
 ```
 
-我们在下面为`changepoint_model`编写一个可视化：
+下面我们为 `changepoint_model` 编写一个可视化程序：
 
 ```julia
-function render_changepoint_model_trace（trace; show_data = true）
-xs = Gen.get_args（trace）[1]
-node = Gen.get_retval（trace）
-render_node（节点）
-如果是show_data
-ys = [trace [（：y，i）] for i = 1：length（xs）]
-散射（xs，ys，c =“黑色”）
-end
-ax = gca（）
-ax [：set_xlim]（（minimum（xs），maximum（xs）））
-ax [：set_ylim]（（ -  3,3））
+function render_changepoint_model_trace(trace; show_data=true)
+    xs = Gen.get_args(trace)[1]
+    node = Gen.get_retval(trace)
+    render_node(node)
+    if show_data
+        ys = [trace[(:y, i)] for i=1:length(xs)]
+        scatter(xs, ys, c="black")
+    end
+    ax = gca()
+    ax[:set_xlim]((minimum(xs), maximum(xs)))
+    ax[:set_ylim]((-3, 3))
 end;
 ```
 
-最后，我们生成一些模拟数据集，并在生成它们的基础分段常量函数之上将它们可视化：
+最后，我们生成一些模拟数据集，并在生成它们的基础分段常数函数上将它们可视化：
 
 ```julia
-trace = [Gen.simulate（changepoint_model，（xs_dense，））for i = 1:12]
-grid（render_changepoint_model_trace，traces）
+traces = [Gen.simulate(changepoint_model, (xs_dense,)) for i=1:12]
+grid(render_changepoint_model_trace, traces)
 ```
 
 ![png](output_153_0.png)
 
-注意，分段常量平均函数周围的可变量因 trace 而异。
+注意，分段常量均值函数的可变程度因 trace 不同而不同。
 
 现在我们对简单数据集进行推理：
 
 ```julia
-trace = [do_inference（changepoint_model，xs_dense，ys_simple，10000）for _ = 1：12];
-grid（render_changepoint_model_trace，traces）
+traces = [do_inference(changepoint_model, xs_dense, ys_simple, 10000) for _=1:12];
+grid(render_changepoint_model_trace, traces)
 ```
 
 ![png](output_156_0.png)
 
-我们看到，我们推断出解释数据的平均函数是一个非常高概率的常数。
+我们看到，我们推断出的能解释数据的均值函数是一个非常高置信度的常数。
 
-对于复杂数据集的推断，我们使用更多的计算。您可以尝试不同的计算量，以查看推理质量如何随着计算量的减少而降低。注意，我们在本教程中使用了一个非常简单的通用推理算法，它实际上不适合这个更复杂的任务。在后面的教程中，我们将学习如何编写更有效的算法，以便在计算量大大减少的情况下获得准确的结果。无论推理算法如何，我们还将看到注释模型以获得更好性能的方法。
+对于复杂数据集的推断，我们要使用更多的计算。你可以尝试不同的计算量，来看看推理质量如何随着计算量的减少而降低。注意，我们在本教程中使用了一个非常简单的通用推理算法，它实际上不适合这个更复杂的任务。在后面的教程中，我们将学习如何编写更有效的算法，以便在计算量大大减少的情况下获得准确的结果。无论推理算法如何，我们还将看到注释模型以获得更好性能的方法。
 
 ```julia
-trace = [do_inference（changepoint_model，xs_dense，ys_complex，100000）for _ = 1：12];
-grid（render_changepoint_model_trace，traces）
+traces = [do_inference(changepoint_model, xs_dense, ys_complex, 100000) for _=1:12];
+grid(render_changepoint_model_trace, traces)
 ```
 
 ![png](output_159_0.png)
 
-结果表明，对于更复杂的数据集，推断出更多的段。
+结果表明，对于更复杂的数据集，推断出了更多的分段。
 
 ---
 
 ### 练习
 
 编写一个函数，该函数采用 x 和 y 坐标的数据集，并绘制关于变化点数量的概率分布的直方图。
-显示`ys_simple`和`ys_complex`数据集的结果。
+显示 `ys_simple` 和 `ys_complex` 数据集的结果。
 
-提示：`changepoint_model`的返回值是`Node`值的树。走这棵树。
+提示： `changepoint_model` 的返回值是 `Node` 构成的树。遍历这棵树。
 
 ---
 
 ### 练习
 
-编写一个新版本的`changepoint_model`，它使用没有地址的`@trace`（例如`@trace（<call>）`）来进行递归调用。
+编写一个新版本的 `changepoint_model` ，它使用没有地址的 `@trace` （如`@trace(<call>)` ）来进行递归调用。
 
-提示：您需要保证所有地址都是唯一的。如何使用整数标记二叉树中的每个节点？
+提示：你需要保证所有地址都是唯一的。如何使用整数标记二叉树中的每个节点？
